@@ -49,21 +49,20 @@ def normalize(X_train, X_test):
 # Draw data points randomly with replacement
 def upsample(X, y, needed):
     count_true = np.sum(y)
-    tx= extract_true(X, y)
+    tx = extract_true(X, y)
     result_X, result_y = X, y
     for i in range(needed):
         idx = int(count_true * np.random.random_sample())
         result_X = np.append(result_X, [tx[idx]], axis=0)
         result_y = np.append(result_y, 1)
+
     assert(len(result_X) == len(result_y))
     return result_X, result_y
 
 # Take all examples with true label
 def extract_true(X, y):
-    result_x= []
-    for i in range(len(y)):
-        if y[i] == 1:
-            result_x.append(X[i])
+    assert(len(X) == len(y))
+    result_x = X[y == 1.0]
     return result_x
 
 # @Deprecated
