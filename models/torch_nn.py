@@ -1,10 +1,8 @@
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report
-
 import util
 import numpy as np
 import torch, torch.nn as nn, torch.nn.functional as F
 import torch.utils.data as data_utils
+from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from imbalanced import ImbalancedDatasetSampler
 
@@ -15,17 +13,22 @@ class FraudNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.fc1 = nn.Linear(29, 16)
+        self.bn1 = nn.BatchNorm1d(16)
         self.fc2 = nn.Linear(16, 18)
+        self.bn2 = nn.BatchNorm1d(18)
         self.fc3 = nn.Linear(18, 20)
+        self.bn3 = nn.BatchNorm1d(20)
         self.fc4 = nn.Linear(20, 24)
         self.fc5 = nn.Linear(24, 1)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.dropout(x, p=0.25)
-        x = F.relu(self.fc3(x))
-        x = F.relu(self.fc4(x))
+        x = F.leaky_relu(self.fc1(x))
+        x = self.bn1(x)
+        x = F.leaky_relu(self.fc2(x))
+        x = self.bn2(x)
+        x = F.leaky_relu(self.fc3(x))
+        x = self.bn3(x)
+        x = self.fc4(x)
         x = torch.sigmoid(self.fc5(x))
         return x
 
@@ -47,7 +50,7 @@ def main():
 
     needed = diff / len(X_minority)
     needed = int(needed)
-    needed = 16 - 1
+    needed = 10
     X_train = np.concatenate((X_train, *[X_minority for _ in range(needed)]), axis=0)
     Y_train = np.concatenate((Y_train, *[[1] for _ in range(needed * len(X_minority))]), axis=0)
     assert(len(X_train) == len(Y_train))
@@ -62,9 +65,9 @@ def main():
 
     model = FraudNet().float()
     criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=0.02)
 
-    training_epochs = 4
+    training_epochs = 2
     minibatch_size = 2 << 10
 
     train_dataset = data_utils.TensorDataset(X_train, Y_train)
@@ -85,8 +88,8 @@ def main():
             labels = torch.unsqueeze(labels, 1).float()
             loss = criterion(y_pred, labels)
 
-            if b % 256:
-                print('Epochs: {}, batch: {} loss: {}'.format(epoch, b, loss))
+            # if b % 256:
+            #     print('Epochs: {}, batch: {} loss: {}'.format(epoch, b, loss))
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -104,9 +107,12 @@ def main():
                 # print(f"fraud output is: {outputs[labels == 1.0]}")
                 print(f"minimal output is {torch.min(outputs)}")
 
-                outputs_binary = (outputs > 0.5)
+                outputs_binary = (outputs > 0.95)
+                print(outputs_binary)
                 print(f"mean output: {torch.mean(outputs)}")
+                cm = confusion_matrix(labels, outputs_binary)
                 test_result = classification_report(labels, outputs_binary, target_names=label_name)
+                print(f"confusion matrix: {cm}")
                 print(test_result)
 
 
